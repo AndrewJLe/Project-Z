@@ -57,7 +57,7 @@ const useInitMatter = (elementId: string) => {
         const wall_options = {
             isStatic: true,
             restitution: 0,
-            friction: 0,
+            friction: 0.75,
             render: {
                 fillStyle: 'black',
                 strokeStyle: 'black',

@@ -1,4 +1,5 @@
 import Matter, { Bodies, Composite, Vector, Body, Constraint, Common } from "matter-js";
+import { DEFAULT_ZOMBOID_CONFIGURATION } from "../configs/ZomboidConfig";
 
 import { World } from "./World";
 
@@ -30,6 +31,7 @@ export enum PopType {
 }
 
 class Pop {
+    // Traits
     id: number;
     popType: PopType;
     speed: number;
@@ -37,6 +39,7 @@ class Pop {
     velocity: Vector;
     cachedForces: Vector[];
 
+    // Physical bodies
     composite: Composite;
     body: Body;
     sensor: Body;
@@ -74,17 +77,17 @@ class Pop {
             {
                 label: this.id.toString(),
                 friction: 0,
-                frictionAir: 0,
+                frictionAir: 0.15, // helps prevents bouncing upon collision
                 frictionStatic: 0,
                 restitution: 0,
                 render: {
-                    fillStyle: this.popType === PopType.humanoid ? "white" : 'rgb(73, 245, 102)',
+                    fillStyle: this.popType === PopType.humanoid ? bodyColor : DEFAULT_ZOMBOID_CONFIGURATION.bodyColor,
                     strokeStyle: bodyBorderColor,
                     lineWidth: bodyBorderWidth,
                 }
             }
         );
-        Body.setMass(body, 30);
+        Body.setMass(body, 20);
         // Body.setDensity(body, 0.001);
 
         return body;
@@ -109,7 +112,6 @@ class Pop {
                 }
             }
         );
-        // Matter.Body.setMass(sensorBody, 20);
 
         return sensorBody;
     }
@@ -137,9 +139,10 @@ class Pop {
         const steerDirection = Vector.sub(desiredVelocity, this.body.velocity);
 
         // Cache the force to be applied upon engine update
-        this.cachedForces.push(steerDirection);
+        if (this.cachedForces.length === 0) {
+            this.cachedForces.push(steerDirection);
 
-        // Body.applyForce(this.body, this.body.position, steerDirection);
+        }
     }
 }
 
