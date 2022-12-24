@@ -1,17 +1,20 @@
+import { cloneDeep } from "lodash";
+
 import Matter, { Bodies, Composite, Vector, Body, Constraint, Common, Events, Engine } from "matter-js";
-import { DEFAULT_POP_CONFIGURATION } from "../configs/PopConfig";
-import { DEFAULT_ZOMBOID_CONFIGURATION } from "../configs/ZomboidConfig";
-import Pop, { PopType, PopConfiguration } from "./Pop";
+import { DEFAULT_POP_STATS, DEFAULT_POP_APPEARANCE } from "../configs/PopConfig";
+import { DEFAULT_ZOMBOID_STATS, DEFAULT_ZOMBOID_APPEARANCE } from "../configs/ZomboidConfig";
+import { DEFAULT_INFECTOID_STATS, DEFAULT_INFECTOID_APPEARANCE } from "../configs/InfectoidConfig";
+import Pop, { PopStats, PopConfiguration, PopType } from "./Pop";
 
 export class World {
     // // Canvas configurations
     // worldConfiguration: WorldConfiguration;
 
     // Zomboid configurations
-    zomboidConfiguration: PopConfiguration = DEFAULT_ZOMBOID_CONFIGURATION;
+    zomboidConfiguration: PopConfiguration = { stats: DEFAULT_ZOMBOID_STATS, appearance: DEFAULT_ZOMBOID_APPEARANCE };
 
     // Humanoid configurations
-    humanoidConfiguration: PopConfiguration = DEFAULT_POP_CONFIGURATION;
+    humanoidConfiguration: PopConfiguration = { stats: DEFAULT_POP_STATS, appearance: DEFAULT_POP_APPEARANCE };
     pops: Pop[] = [];
     engine: Engine;
 
@@ -24,16 +27,14 @@ export class World {
 
     initPops() {
         for (let i = 0; i < 50; i++) {
-            const popType = Math.random() < 0.9 ? PopType.humanoid : PopType.zomboid
             const pop = new Pop(
                 i,
-                Vector.create(Common.random(0, window.innerWidth), Common.random(0, window.innerHeight)),
-                Vector.create(Common.random(-0.1, 0.1), Common.random(-0.1, 0.1)),
-                popType,
-                PopType.humanoid ? DEFAULT_POP_CONFIGURATION : DEFAULT_ZOMBOID_CONFIGURATION,
+                Vector.create(Common.random(0, window.innerWidth), Common.random(0, window.innerHeight)), // position
+                Vector.create(Common.random(-0.1, 0.1), Common.random(-0.1, 0.1)), // velocity
+                Math.random() < 0.9 ? cloneDeep(this.humanoidConfiguration) : cloneDeep(this.zomboidConfiguration), // type
             );
 
-            Body.applyForce(pop.body, pop.position, { x: Common.random(-0.1, 0.1), y: Common.random(-0.1, 0.1) });
+            Body.applyForce(pop.body, pop.position, { x: Common.random(-pop.stats.speed, pop.stats.speed), y: Common.random(-pop.stats.speed, pop.stats.speed) });
 
             Composite.add(this.engine.world, pop.composite);
 
@@ -50,41 +51,69 @@ export class World {
     }
 
     encounterPop(pop: Pop, otherPop: Pop) {
-        if ((pop.popType === PopType.humanoid && otherPop.popType === PopType.zomboid) || (pop.popType === PopType.zomboid && otherPop.popType === PopType.humanoid)) {
-            if (pop.popType === PopType.humanoid) { // Zomboids infect Humanoids during collisions
+        if ((pop.stats.popType === PopType.humanoid && otherPop.stats.popType === PopType.zomboid) || (pop.stats.popType === PopType.zomboid && otherPop.stats.popType === PopType.humanoid)) {
+            if (pop.stats.popType === PopType.humanoid) { // Zomboids infect Humanoids during collisions
                 this.infectPop(pop);
             }
-            if (otherPop.popType === PopType.humanoid) { // Zomboids infect Humanoids during collisions
+            if (otherPop.stats.popType === PopType.humanoid) { // Zomboids infect Humanoids during collisions
                 this.infectPop(otherPop);
             }
         }
     }
 
     detectPop(pop: Pop, otherPop: Pop) {
-        switch (pop.popType) {
+        switch (pop.stats.popType) {
             case PopType.humanoid:
-                if (otherPop.popType === PopType.zomboid) {
+                if (otherPop.stats.popType === PopType.zomboid) {
                     // Run away
-                    pop.moveTowards(Vector.sub(pop.body.position, otherPop.body.position));
+                    pop.moveTowards(Vector.sub(pop.body.position, otherPop.body.position), this.engine.timing.lastDelta);
                 }
                 break;
             case PopType.zomboid:
-                if (otherPop.popType === PopType.humanoid) {
+                if (otherPop.stats.popType === PopType.humanoid) {
                     // Give chase
-                    pop.moveTowards(Vector.sub(otherPop.body.position, pop.body.position));
+                    pop.moveTowards(Vector.sub(otherPop.body.position, pop.body.position), this.engine.timing.lastDelta);
                 }
                 break;
         }
     }
 
     infectPop(pop: Pop) {
-        pop.popType = PopType.zomboid;
-        pop.body.render.fillStyle = this.zomboidConfiguration.bodyColor;
+        // Infection period
+        pop.setStats(cloneDeep(DEFAULT_INFECTOID_STATS));
+        pop.setAppearance(cloneDeep(DEFAULT_INFECTOID_APPEARANCE));
+        this.transitionToZomboid(pop, DEFAULT_INFECTOID_APPEARANCE.bodyColor, DEFAULT_ZOMBOID_APPEARANCE.bodyColor, 5000);
+    }
+
+    transitionToZomboid(pop: Pop, inputRGB: string, targetRGB: string, timeToInfect: number) {
+        const bittenTime = this.engine.timing.timestamp;
+        const inputValues = (inputRGB.match(/\d+/g) ?? []).map(Number);
+        const targetValues = (targetRGB.match(/\d+/g) ?? []).map(Number);
+        const difference = inputValues.map((input, index) => targetValues[index] - input);
+
+        const interval = setInterval(() => {
+            const timeSinceBitten = this.engine.timing.timestamp - bittenTime;
+            const percentageInfected = timeSinceBitten / timeToInfect;
+
+            const currentColor = inputValues.map((value, index) => {
+                const step = difference[index] * percentageInfected;
+                return value + step;
+            });
+
+            if (timeSinceBitten >= timeToInfect) {
+                clearInterval(interval);
+                // Turns into zomboid
+                pop.setStats(cloneDeep(DEFAULT_ZOMBOID_STATS));
+                pop.setAppearance(cloneDeep(DEFAULT_ZOMBOID_APPEARANCE));
+            }
+
+            pop.setAppearance({ bodyColor: `rgb(${currentColor.join(',')})` });
+        }, 10);
     }
 
     addCollisionEvents() {
         // Encounter event
-        Events.on(this.engine, 'collisionStart', (event) => {
+        Events.on(this.engine, 'collisionActive', (event) => {
             var pairs = event.pairs;
             // Loop through the pairs of all colliding bodies
             pairs.forEach(({ bodyA, bodyB }) => {
@@ -124,21 +153,11 @@ export class World {
 
         // Before Update
         Events.on(this.engine, 'beforeUpdate', (event) => {
-            // Loop through pops and apply cached velocity
             this.pops.forEach((pop) => {
-                if (pop.cachedForces.length > 0) {
-                    const steerDirection = pop.cachedForces.pop() ?? { x: 0, y: 0 };;
-                    Matter.Body.applyForce(pop.body, pop.position, Vector.mult(steerDirection, 0.01));
-                }
-                // Pops randomly move while "idle"
-                else {
-                    Body.applyForce(pop.body, pop.position, { x: Common.random(-0.03, 0.03), y: Common.random(-0.03, 0.03) });
-                }
-                // Janky speed check?
-                if (pop.body.speed > 1) {
-                    Matter.Body.setVelocity(pop.body, Vector.mult(pop.body.velocity, 0.1))
+                if (pop.stats.popType === PopType.infectoid) {
+                    Body.applyForce(pop.body, pop.position, { x: Common.random(-0.05, 0.05), y: Common.random(-0.05, 0.05) });
                 }
             });
         });
     };
-}
+};

@@ -1,5 +1,5 @@
+import { forEach } from "lodash";
 import Matter, { Bodies, Composite, Vector, Body, Constraint, Common } from "matter-js";
-import { DEFAULT_ZOMBOID_CONFIGURATION } from "../configs/ZomboidConfig";
 
 import { World } from "./World";
 
@@ -9,15 +9,12 @@ export interface WorldConfiguration {
     worldHeight: number;
 }
 
-/**
- * 
- */
 export interface PopConfiguration {
-    // Body
-    size: number;
-    // Stats
-    range: number
-    // Colors
+    stats: PopStats;
+    appearance: PopAppearance;
+}
+
+export interface PopAppearance {
     bodyColor: string;
     bodyBorderColor: string;
     bodyBorderWidth: number;
@@ -27,17 +24,24 @@ export interface PopConfiguration {
 
 export enum PopType {
     "humanoid" = "Humanoid",
-    "zomboid" = "Zomboid"
+    "zomboid" = "Zomboid",
+    "infectoid" = "Infectoid",
+}
+
+export interface PopStats {
+    popType: PopType;
+    size: number;
+    range: number;
+    speed: number;
 }
 
 class Pop {
-    // Traits
     id: number;
-    popType: PopType;
-    speed: number;
     position: Vector;
-    velocity: Vector;
     cachedForces: Vector[];
+
+    stats: PopStats;
+    appearance: PopAppearance;
 
     // Physical bodies
     composite: Composite;
@@ -45,18 +49,39 @@ class Pop {
     sensor: Body;
     constraint: Constraint;
 
-
-    constructor(id: number, position: Vector, velocity: Vector, popType: PopType, popConfiguration: PopConfiguration) {
+    constructor(id: number, position: Vector, velocity: Vector, popConfiguration: PopConfiguration) {
         this.id = id;
-        this.speed = 0.005;
         this.position = position;
-        this.velocity = velocity;
         this.cachedForces = [];
-        this.popType = popType;
-        this.body = this.createBody(popConfiguration);
-        this.sensor = this.createSensor(popConfiguration.range);
+        this.stats = popConfiguration.stats;
+        this.appearance = popConfiguration.appearance;
+        this.body = this.createBody();
+        this.sensor = this.createSensor();
         this.constraint = this.createConstraint();
         this.composite = this.createComposite();
+
+        this.setAppearance(this.appearance);
+    }
+
+    setStats(stats: Partial<PopStats>) {
+        Object.assign(this.stats, stats);
+    }
+
+    setAppearance(appearance: Partial<PopAppearance>) {
+        Object.assign(this.appearance, appearance);
+        const bodyRender = {
+            fillStyle: this.appearance.bodyColor,
+            strokeStyle: this.appearance.bodyBorderColor,
+            lineWidth: this.appearance.bodyBorderWidth,
+        }
+        Object.assign(this.body.render, bodyRender);
+
+        const sensorRender = {
+            fillStyle: "rgba(255, 255, 255, 0)",
+            strokeStyle: "black",
+            lineWidth: 0,
+        }
+        Object.assign(this.sensor.render, sensorRender);
     }
 
     createComposite() {
@@ -69,35 +94,29 @@ class Pop {
         return composite;
     }
 
-    createBody({ size, bodyBorderColor, bodyBorderWidth, bodyColor }: PopConfiguration): Body {
+    createBody(): Body {
         const body = Bodies.circle(
             this.position.x,
             this.position.y,
-            size,
+            this.stats.size,
             {
                 label: this.id.toString(),
                 friction: 0,
-                frictionAir: 0.15, // helps prevents bouncing upon collision
+                frictionAir: 0.3, // helps prevents bouncing upon collision
                 frictionStatic: 0,
-                restitution: 0,
-                render: {
-                    fillStyle: this.popType === PopType.humanoid ? bodyColor : DEFAULT_ZOMBOID_CONFIGURATION.bodyColor,
-                    strokeStyle: bodyBorderColor,
-                    lineWidth: bodyBorderWidth,
-                }
+                restitution: 0.1,
             }
         );
         Body.setMass(body, 20);
-        // Body.setDensity(body, 0.001);
 
         return body;
     }
 
-    createSensor(visionRange: number): Body {
+    createSensor(): Body {
         const sensorBody = Bodies.circle(
             this.position.x,
             this.position.y,
-            visionRange,
+            this.stats.range,
             {
                 isSensor: true,
                 label: this.id.toString(),
@@ -105,11 +124,6 @@ class Pop {
                 frictionAir: 0,
                 frictionStatic: 0,
                 restitution: 0,
-                render: {
-                    fillStyle: "rgba(255, 255, 255, 0)",
-                    strokeStyle: "black",
-                    lineWidth: 0,
-                }
             }
         );
 
@@ -128,21 +142,21 @@ class Pop {
         return constraint;
     }
 
-    moveTowards(direction: Vector): void {
-        // const desiredDirection = Common.chain(
-        //     // @ts-ignore
-        //     Vector.clone, Vector.normalise, (vec: Vector) => Vector.mult(vec, 100)
-        // )(direction);
+    moveTowards(direction: Vector, deltaT: number): void {
+        const desiredVelocity = Vector.mult(Vector.normalise(Vector.clone(direction)), 1.5);
 
-        const desiredVelocity = Vector.mult(Vector.normalise(Vector.clone(direction)), 1);
+        const steerDirection = Vector.normalise(Vector.sub(desiredVelocity, this.body.velocity));
+        const steeringForce = Vector.mult(steerDirection, 20);
 
-        const steerDirection = Vector.sub(desiredVelocity, this.body.velocity);
+        const impulse = Vector.mult(steeringForce, deltaT * 0.001);
 
-        // Cache the force to be applied upon engine update
-        if (this.cachedForces.length === 0) {
-            this.cachedForces.push(steerDirection);
+        Body.setVelocity(this.body, Vector.add(this.body.velocity, impulse));
 
-        }
+
+        // // Cache the force to be applied upon engine update
+        // if (this.cachedForces.length === 0) {
+        //     this.cachedForces.push(Vector.mult(steerDirection, this.stats.speed));
+        // }
     }
 }
 

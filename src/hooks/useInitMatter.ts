@@ -1,7 +1,6 @@
 import React from "react";
-import { Engine, Render, Runner, Vector, Composite, Common, Body, Bodies } from "matter-js";
+import { Engine, Render, Runner, Vector, Composite, Common, Body, Bodies, IBodyDefinition } from "matter-js";
 import Pop from "../classes/Pop";
-import { DEFAULT_POP_CONFIGURATION } from "../configs/PopConfig";
 import { World } from "../classes/World";
 import { forEach } from "lodash";
 
@@ -22,7 +21,7 @@ const useInitMatter = (elementId: string) => {
 
         // Engine Configuration
         // engine.positionIterations = 144;
-        // engine.velocityIterations = 144;
+        // engine.velocityIterations = 20;
         // engine.constraintIterations = 144;
 
         // Physics configuration
@@ -54,10 +53,11 @@ const useInitMatter = (elementId: string) => {
         // Create Walls
         var width_screen = window.innerWidth;
         var height_screen = window.innerHeight;
-        const wall_options = {
+        const wall_options: IBodyDefinition = {
             isStatic: true,
-            restitution: 0,
-            friction: 0.75,
+            restitution: 1,
+            friction: 0,
+            slop: 0.5,
             render: {
                 fillStyle: 'black',
                 strokeStyle: 'black',
