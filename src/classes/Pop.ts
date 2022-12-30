@@ -1,5 +1,5 @@
 import { forEach } from "lodash";
-import Matter, { Bodies, Composite, Vector, Body, Constraint, Common } from "matter-js";
+import Matter, { Bodies, Composite, Vector, Body, Constraint, Common, Engine, Query } from "matter-js";
 
 import { World } from "./World";
 
@@ -46,8 +46,8 @@ class Pop {
     // Physical bodies
     composite: Composite;
     body: Body;
-    sensor: Body;
-    constraint: Constraint;
+    // sensor: Body;
+    // constraint: Constraint;
 
     constructor(id: number, position: Vector, velocity: Vector, popConfiguration: PopConfiguration) {
         this.id = id;
@@ -56,8 +56,8 @@ class Pop {
         this.stats = popConfiguration.stats;
         this.appearance = popConfiguration.appearance;
         this.body = this.createBody();
-        this.sensor = this.createSensor();
-        this.constraint = this.createConstraint();
+        // this.sensor = this.createSensor();
+        // this.constraint = this.createConstraint();
         this.composite = this.createComposite();
 
         this.setAppearance(this.appearance);
@@ -76,20 +76,20 @@ class Pop {
         }
         Object.assign(this.body.render, bodyRender);
 
-        const sensorRender = {
-            fillStyle: "rgba(255, 255, 255, 0)",
-            strokeStyle: "black",
-            lineWidth: 0,
-        }
-        Object.assign(this.sensor.render, sensorRender);
+        // const sensorRender = {
+        //     fillStyle: "rgba(255, 255, 255, 0)",
+        //     strokeStyle: "black",
+        //     lineWidth: 0,
+        // }
+        // Object.assign(this.sensor.render, sensorRender);
     }
 
     createComposite() {
         const composite = Composite.create({ id: this.id });
 
         Composite.add(composite, this.body);
-        Composite.add(composite, this.sensor);
-        Composite.add(composite, this.constraint);
+        // Composite.add(composite, this.sensor);
+        // Composite.add(composite, this.constraint);
 
         return composite;
     }
@@ -112,35 +112,35 @@ class Pop {
         return body;
     }
 
-    createSensor(): Body {
-        const sensorBody = Bodies.circle(
-            this.position.x,
-            this.position.y,
-            this.stats.range,
-            {
-                isSensor: true,
-                label: this.id.toString(),
-                friction: 0,
-                frictionAir: 0,
-                frictionStatic: 0,
-                restitution: 0,
-            }
-        );
+    // createSensor(): Body {
+    //     const sensorBody = Bodies.circle(
+    //         this.position.x,
+    //         this.position.y,
+    //         this.stats.range,
+    //         {
+    //             isSensor: true,
+    //             label: this.id.toString(),
+    //             friction: 0,
+    //             frictionAir: 0,
+    //             frictionStatic: 0,
+    //             restitution: 0,
+    //         }
+    //     );
 
-        return sensorBody;
-    }
+    //     return sensorBody;
+    // }
 
-    createConstraint(): Constraint {
-        const constraint: Constraint = Constraint.create({
-            bodyA: this.body,
-            bodyB: this.sensor,
-            stiffness: 1,
-            render: {
-                lineWidth: 0,
-            }
-        });
-        return constraint;
-    }
+    // createConstraint(): Constraint {
+    //     const constraint: Constraint = Constraint.create({
+    //         bodyA: this.body,
+    //         bodyB: this.sensor,
+    //         stiffness: 1,
+    //         render: {
+    //             lineWidth: 0,
+    //         }
+    //     });
+    //     return constraint;
+    // }
 
     moveTowards(direction: Vector, deltaT: number): void {
         const desiredVelocity = Vector.mult(Vector.normalise(Vector.clone(direction)), 1.5);
@@ -151,12 +151,6 @@ class Pop {
         const impulse = Vector.mult(steeringForce, deltaT * 0.001);
 
         Body.setVelocity(this.body, Vector.add(this.body.velocity, impulse));
-
-
-        // // Cache the force to be applied upon engine update
-        // if (this.cachedForces.length === 0) {
-        //     this.cachedForces.push(Vector.mult(steerDirection, this.stats.speed));
-        // }
     }
 }
 

@@ -1,10 +1,12 @@
-import { cloneDeep } from "lodash";
+import { cloneDeep, forEach } from "lodash";
 
-import Matter, { Bodies, Composite, Vector, Body, Constraint, Common, Events, Engine } from "matter-js";
+import Matter, { Bodies, Composite, Vector, Body, Constraint, Common, Events, Engine, Query, IBodyDefinition } from "matter-js";
 import { DEFAULT_POP_STATS, DEFAULT_POP_APPEARANCE } from "../configs/PopConfig";
 import { DEFAULT_ZOMBOID_STATS, DEFAULT_ZOMBOID_APPEARANCE } from "../configs/ZomboidConfig";
 import { DEFAULT_INFECTOID_STATS, DEFAULT_INFECTOID_APPEARANCE } from "../configs/InfectoidConfig";
 import Pop, { PopStats, PopConfiguration, PopType } from "./Pop";
+import { isThisTypeNode } from "typescript";
+import { render } from "@testing-library/react";
 
 export class World {
     // // Canvas configurations
@@ -21,8 +23,38 @@ export class World {
 
     constructor(engine: Engine) {
         this.engine = engine;
+        this.initTerrain();
         this.initPops();
         this.addCollisionEvents();
+    }
+
+    initTerrain() {
+        // Create Walls
+        var width_screen = window.innerWidth;
+        var height_screen = window.innerHeight;
+        const wall_options: IBodyDefinition = {
+            label: 'terrain',
+            isStatic: true,
+            restitution: 1,
+            friction: 0,
+            slop: 0.5,
+            render: {
+                fillStyle: 'black',
+                strokeStyle: 'black',
+                lineWidth: 1
+            }
+        }
+        var wall_thickness = 10;
+        var walls = [
+            // x pos (center of shape), y pos, width, height, options
+            Bodies.rectangle(width_screen / 2, height_screen, width_screen, wall_thickness, wall_options), // Bottom wall
+            Bodies.rectangle(width_screen / 2, 0, width_screen, wall_thickness, wall_options), // Top wall
+            Bodies.rectangle(width_screen, height_screen / 2, wall_thickness, height_screen, wall_options), // Right wall
+            Bodies.rectangle(0, height_screen / 2, wall_thickness, height_screen, wall_options), // Left wall
+            // Bodies.rectangle(width_screen / 2, height_screen / 2, wall_thickness, height_screen, wall_options), // Middle wall
+        ];
+
+        Composite.add(this.engine.world, walls)
     }
 
     initPops() {
@@ -40,6 +72,31 @@ export class World {
 
             this.pops.push(pop);
         }
+
+
+        // for (let i = 0; i < 10; i++) {
+        //     const pop = new Pop(
+        //         i,
+        //         Vector.create(Common.random(0, window.innerWidth / 2), Common.random(0, window.innerHeight)), // position
+        //         Vector.create(Common.random(-0.1, 0.1), Common.random(-0.1, 0.1)), // velocity
+        //         this.zomboidConfiguration
+        //     );
+
+        //     Composite.add(this.engine.world, pop.composite);
+        //     this.pops.push(pop);
+        // }
+
+        // for (let i = 0; i < 10; i++) {
+        //     const pop = new Pop(
+        //         i,
+        //         Vector.create(Common.random(window.innerWidth / 2, window.innerWidth), Common.random(0, window.innerHeight)), // position
+        //         Vector.create(Common.random(-0.1, 0.1), Common.random(-0.1, 0.1)), // velocity
+        //         this.humanoidConfiguration
+        //     );
+
+        //     Composite.add(this.engine.world, pop.composite);
+        //     this.pops.push(pop);
+        // }
     }
 
     initMatter() {
@@ -111,14 +168,40 @@ export class World {
         }, 10);
     }
 
+    // Returns the closest Pop from this pop
+    castRays(pop: Pop) {
+        // More rays --> better scan at the cost of performance
+        var closestPop = pop;
+        var closestDistance = Infinity;
+        for (let angle = 0; angle < 2 * Math.PI; angle += Math.PI / 16) {
+            var scaledDirection = Vector.mult(Vector.create(Math.cos(angle), Math.sin(angle)), pop.stats.range)
+            var endRayPosition = Vector.add(pop.body.position, scaledDirection);
+            var detectedObjects = Query.ray(Composite.allBodies(this.engine.world), pop.position, endRayPosition, 10);
+            // note: the pop casting the rays will always be detected by the rays
+            // we can offset this by checking the id number of the pop casting the ray or by ignoring the 0th index (?)
+            for (let i = 1; i < detectedObjects.length; i++) {
+                // Any pop behind a wall will not be considered/detected
+                if (detectedObjects[i].bodyA.label === 'terrain') break;
+                const otherPop = this.getPopFromBodyLabel(detectedObjects[i].bodyA.label);
+                if (otherPop === null) break;
+                // Keep track of the closest pop
+                var currentDistance = Math.hypot(Math.abs(pop.body.position.x - otherPop.body.position.x), Math.abs(pop.body.position.y - otherPop.body.position.y));
+                if (currentDistance <= closestDistance) {
+                    closestPop = otherPop;
+                }
+            }
+            this.detectPop(pop, closestPop);
+        }
+    }
+
     addCollisionEvents() {
         // Encounter event
         Events.on(this.engine, 'collisionActive', (event) => {
             var pairs = event.pairs;
             // Loop through the pairs of all colliding bodies
             pairs.forEach(({ bodyA, bodyB }) => {
-                // Ignore sensors colliding with other sensors
-                if (bodyA.isSensor || bodyB.isSensor) return;
+                // Ignore terrain
+                if (bodyA.label === "terrain" || bodyB.label === "terrain") return;
 
                 const popA = this.getPopFromBodyLabel(bodyA.label);
                 const popB = this.getPopFromBodyLabel(bodyB.label);
@@ -131,31 +214,12 @@ export class World {
             });
         });
 
-        // Detection event
-        Events.on(this.engine, 'collisionActive', ({ pairs }) => {
-            pairs.forEach(({ bodyA, bodyB }) => {
-                // Is detection event if one body is sensor and the other body is not
-                if (bodyA.label === bodyB.label) return;
-                if (bodyA.isSensor === bodyB.isSensor) return;
-
-                const popA = this.getPopFromBodyLabel(bodyA.label);
-                const popB = this.getPopFromBodyLabel(bodyB.label);
-
-                if (popA === null || popB === null) return;
-
-                if (bodyA.isSensor) {
-                    this.detectPop(popA, popB);
-                } else {
-                    this.detectPop(popB, popA);
-                }
-            });
-        });
-
         // Before Update
         Events.on(this.engine, 'beforeUpdate', (event) => {
             this.pops.forEach((pop) => {
+                this.castRays(pop);
                 if (pop.stats.popType === PopType.infectoid) {
-                    Body.applyForce(pop.body, pop.position, { x: Common.random(-0.05, 0.05), y: Common.random(-0.05, 0.05) });
+                    Body.applyForce(pop.body, pop.position, { x: Common.random(-0.03, 0.03), y: Common.random(-0.03, 0.03) });
                 }
             });
         });

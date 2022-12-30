@@ -3,7 +3,7 @@ import { PopAppearance, PopStats, PopType } from "../classes/Pop"
 export const DEFAULT_ZOMBOID_STATS: PopStats = {
     popType: PopType.zomboid,
     size: 10,
-    range: 250,
+    range: 300,
     speed: 1.1,
 }
 
