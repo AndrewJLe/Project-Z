@@ -1,10 +1,10 @@
-import { PopAppearance, PopStats, PopType } from "../classes/Pop"
+import { PopAppearance, PopStats, PopType } from "../@types/Pop"
 
 export const DEFAULT_ZOMBOID_STATS: PopStats = {
     popType: PopType.zomboid,
     size: 10,
-    range: 250,
-    speed: 1.1,
+    range: 150,
+    speed: 0.5,
 }
 
 export const DEFAULT_ZOMBOID_APPEARANCE: PopAppearance = {

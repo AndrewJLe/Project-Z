@@ -1,9 +1,9 @@
-import { PopAppearance, PopStats, PopType } from "../classes/Pop"
+import { PopAppearance, PopStats, PopType } from "../@types/Pop"
 
 export const DEFAULT_POP_STATS: PopStats = {
     popType: PopType.humanoid,
     size: 10,
-    range: 200,
+    range: 100,
     speed: 1,
 }
 

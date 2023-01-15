@@ -1,10 +1,12 @@
 import { cloneDeep } from "lodash";
 
-import Matter, { Bodies, Composite, Vector, Body, Constraint, Common, Events, Engine } from "matter-js";
+import Matter, { Bodies, Composite, Vector, Body, Constraint, Common, Events, Engine, IBodyDefinition, Pairs, Query, IEventCollision } from "matter-js";
 import { DEFAULT_POP_STATS, DEFAULT_POP_APPEARANCE } from "../configs/PopConfig";
 import { DEFAULT_ZOMBOID_STATS, DEFAULT_ZOMBOID_APPEARANCE } from "../configs/ZomboidConfig";
 import { DEFAULT_INFECTOID_STATS, DEFAULT_INFECTOID_APPEARANCE } from "../configs/InfectoidConfig";
-import Pop, { PopStats, PopConfiguration, PopType } from "./Pop";
+import { PopConfiguration, PopType } from "../@types/Pop";
+import Pop from "./Pop";
+import { DetectedObjects, DETECTED_OBJECTS } from "../configs/DetectedObjects";
 
 export class World {
     // // Canvas configurations
@@ -18,24 +20,59 @@ export class World {
     pops: Pop[] = [];
     engine: Engine;
 
-
     constructor(engine: Engine) {
+        this.handlePairCollisionStart = this.handlePairCollisionStart.bind(this);
         this.engine = engine;
+        this.initTerrain();
         this.initPops();
         this.addCollisionEvents();
+    }
+
+    initTerrain() {
+        // Create Border Walls
+        const width_screen = window.innerWidth;
+        const height_screen = window.innerHeight;
+        const wall_thickness = 10;
+        const wall_options: IBodyDefinition = {
+            isStatic: true,
+            restitution: 1,
+            friction: 0,
+            slop: 0.5,
+            render: {
+                fillStyle: 'black',
+                strokeStyle: 'black',
+                lineWidth: 1
+            }
+        }
+        var walls = [
+            // x pos (center of shape), y pos, width, height, options
+            Bodies.rectangle(width_screen / 2, height_screen, width_screen, wall_thickness, wall_options), // Bottom wall
+            Bodies.rectangle(width_screen / 2, 0, width_screen, wall_thickness, wall_options), // Top wall
+            Bodies.rectangle(width_screen, height_screen / 2, wall_thickness, height_screen, wall_options), // Right wall
+            Bodies.rectangle(0, height_screen / 2, wall_thickness, height_screen, wall_options), // Left wall
+            Bodies.rectangle(width_screen / 2, height_screen / 2, 20, 250, wall_options),// Middle wall
+            Bodies.rectangle(width_screen / 4, height_screen / 4, 30, 250, wall_options), // Middle wall
+            Bodies.rectangle(width_screen / 1.2, height_screen / 1.3, 100, 100, wall_options), // Middle wall
+        ];
+
+        Composite.add(this.engine.world, walls)
     }
 
     initPops() {
         for (let i = 0; i < 50; i++) {
             const pop = new Pop(
                 i,
-                Vector.create(Common.random(0, window.innerWidth), Common.random(0, window.innerHeight)), // position
+                Vector.create(Math.random() * window.innerWidth, Math.random() * window.innerHeight), // position
                 Vector.create(Common.random(-0.1, 0.1), Common.random(-0.1, 0.1)), // velocity
                 Math.random() < 0.9 ? cloneDeep(this.humanoidConfiguration) : cloneDeep(this.zomboidConfiguration), // type
             );
 
-            Body.applyForce(pop.body, pop.position, { x: Common.random(-pop.stats.speed, pop.stats.speed), y: Common.random(-pop.stats.speed, pop.stats.speed) });
+            // Body.applyForce(pop.body, pop.body.position, { x: Common.random(-pop.stats.speed, pop.stats.speed), y: Common.random(-pop.stats.speed, pop.stats.speed) });
 
+            if (i === 0) {
+                pop.body.render.fillStyle = 'black'
+                pop.sensor.render.lineWidth = 1
+            }
             Composite.add(this.engine.world, pop.composite);
 
             this.pops.push(pop);
@@ -63,12 +100,13 @@ export class World {
 
     detectPop(pop: Pop, otherPop: Pop) {
         switch (pop.stats.popType) {
-            case PopType.humanoid:
-                if (otherPop.stats.popType === PopType.zomboid) {
-                    // Run away
-                    pop.moveTowards(Vector.sub(pop.body.position, otherPop.body.position), this.engine.timing.lastDelta);
-                }
-                break;
+            /**  OLD HUMANOID EVASION BEHAVIOR */
+            // case PopType.humanoid:
+            //     if (otherPop.stats.popType === PopType.zomboid) {
+            //         // Run away
+            //         pop.moveTowards(Vector.sub(pop.body.position, otherPop.body.position), this.engine.timing.lastDelta);
+            //     }
+            //     break;
             case PopType.zomboid:
                 if (otherPop.stats.popType === PopType.humanoid) {
                     // Give chase
@@ -111,7 +149,96 @@ export class World {
         }, 10);
     }
 
+    // Terrain Detection
+    checkTerrain(pop: Pop) {
+        // Check if terrain is detected within the sensor
+        const detectedObjects = Matter.Query.collides(pop.sensor, Composite.allBodies(this.engine.world));
+        for (let i = 0; i < detectedObjects.length; i++) {
+            if (detectedObjects[i].bodyA.label === 'terrain') {
+                pop.terrainDetected = true;
+            }
+        }
+        pop.terrainDetected = false;
+    }
+
+
+    filterVisible(pop: Pop, detectedObjects: DetectedObjects): DetectedObjects {
+        var visibleObjects = cloneDeep(DETECTED_OBJECTS);
+
+        const { terrain, ...nonTerrainObjects } = detectedObjects;
+
+        const rayStart = pop.body.position
+        for (const list of Object.values(nonTerrainObjects)) {
+            for (const item of list) {
+                // Is this item visible?
+                const rayEnd = item.body.position
+                const collisions = Query.ray(terrain, rayStart, rayEnd)
+                if (collisions.length > 0) {
+                    break;
+                }
+                // pop is visible, add to respective list
+                else {
+                    visibleObjects[item.stats.popType].push(item);
+                }
+            }
+        }
+
+        visibleObjects.terrain = terrain;
+
+        return visibleObjects
+    }
+
+    handlePairCollisionStart({ pairs }: IEventCollision<Engine>) {
+        function addDetectedObject(popA: Pop, objectB: Body | Pop) {
+            let bucket: any[];
+            if (objectB instanceof Pop) {
+                bucket = popA.detectedObjects[objectB.stats.popType];
+            } else {
+                bucket = popA.detectedObjects.terrain;
+            }
+            const alreadyDetected = bucket.find(({ id }) => objectB.id === id);
+            if (!alreadyDetected) bucket.push(objectB);
+        }
+
+        for (const { bodyA, bodyB } of pairs) {
+            if (bodyA.label === bodyB.label) continue;
+            if (bodyA.isSensor === bodyB.isSensor) continue;
+
+            const popA = this.getPopFromBodyLabel(bodyA.label);
+            const popB = this.getPopFromBodyLabel(bodyB.label);
+
+            if (popA) addDetectedObject(popA, popB || bodyB);
+            if (popB) addDetectedObject(popB, popA || bodyA);
+        }
+    }
+
     addCollisionEvents() {
+        Events.on(this.engine, 'collisionStart', this.handlePairCollisionStart)
+
+        Events.on(this.engine, 'collisionEnd', ({ pairs }) => {
+
+            function removeDetectedObject(popA: Pop, objectB: Body | Pop) {
+                for (let bucket of Object.values(popA.detectedObjects)) {
+                    const index = bucket.indexOf(objectB as any);
+                    if (index !== -1) {
+                        bucket.splice(index, 1);
+                        break;
+                    }
+                }
+            }
+
+            pairs.forEach(({ bodyA, bodyB }) => {
+                if (bodyA.label === bodyB.label) return;
+                if (bodyA.isSensor === bodyB.isSensor) return;
+
+                const popA = this.getPopFromBodyLabel(bodyA.label);
+                const popB = this.getPopFromBodyLabel(bodyB.label);
+
+                if (popA) removeDetectedObject(popA, popB || bodyB);
+                if (popB) removeDetectedObject(popB, popA || bodyA);
+            })
+        })
+
         // Encounter event
         Events.on(this.engine, 'collisionActive', (event) => {
             var pairs = event.pairs;
@@ -154,8 +281,15 @@ export class World {
         // Before Update
         Events.on(this.engine, 'beforeUpdate', (event) => {
             this.pops.forEach((pop) => {
+                // Humans smartly run away
+                if (pop.stats.popType === PopType.humanoid) {
+                    const bestPath = pop.smartPathing(this.filterVisible(pop, pop.detectedObjects));
+                    pop.moveTowards(bestPath, this.engine.timing.lastDelta);
+                }
+
+                // Infectoids spaz out
                 if (pop.stats.popType === PopType.infectoid) {
-                    Body.applyForce(pop.body, pop.position, { x: Common.random(-0.05, 0.05), y: Common.random(-0.05, 0.05) });
+                    Body.applyForce(pop.body, pop.body.position, { x: Common.random(-0.05, 0.05), y: Common.random(-0.05, 0.05) });
                 }
             });
         });
