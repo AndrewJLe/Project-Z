@@ -1,10 +1,9 @@
 import { cloneDeep } from "lodash";
-import Matter, { Bodies, Composite, Vector, Body, Constraint, Query } from "matter-js";
+import Matter, { Bodies, Composite, Vector, Body, Constraint } from "matter-js";
 
 import { PopAppearance, PopConfiguration, PopStats, PopType } from "../@types/Pop";
 
 import { DetectedObjects, DETECTED_OBJECTS } from "../configs/DetectedObjects";
-import { ZERO_ANGLE_VECTOR } from "../configs/Math";
 
 export interface WorldConfiguration {
     worldOffset: number;
@@ -152,47 +151,15 @@ function calculateAbsoluteAngles(pop: Pop, filteredDetectedObjects: DetectedObje
     function getAngle(object: Pop | Body) {
         if (object instanceof Pop) {
             if (object.stats.popType === PopType.zomboid || object.stats.popType === PopType.infectoid) return getPointAngle(object);
-        } else if (object) return getRectAngle(object);
+        };
 
         // Using this to handle line walls for now
-
         return NaN;
     }
 
     function getPointAngle(otherPop: Pop): number {
         const vectorToPop = Vector.sub(otherPop.body.position, pop.body.position);
         return Vector.angle(vectorToPop, Vector.create(0, 0));
-    }
-
-    function getRectAngle(rect: Body): number {
-        // Normal raycasting
-        let normalVector;
-        outer:
-        for (let axis of rect.axes) {
-            for (let rotation of [0, Math.PI]) {
-                const normal = Vector.rotate(axis, rotation);
-                const endpoint = Vector.add(pop.body.position, Vector.mult(Vector.normalise(normal), 10000000))
-                const [collision] = Query.ray([rect], pop.body.position, endpoint);
-                if (collision) {
-                    normalVector = normal;
-                    break outer;
-                }
-            }
-        }
-        if (normalVector) return Vector.angle(normalVector, Vector.create(0, 0));
-
-        // Corners
-        let closestCornerVector: Vector;
-        let closestDistance;
-        for (let vertex of rect.vertices) {
-            const cornerVector = Vector.sub(vertex, pop.body.position)
-            const distance = Vector.magnitude(cornerVector);
-            if (!closestDistance || distance < closestDistance) {
-                closestDistance = distance;
-                closestCornerVector = cornerVector;
-            }
-        }
-        return Vector.angle(closestCornerVector!, Vector.create(0, 0));
     }
 
     const angles = Object.values(filteredDetectedObjects).flat().map(getAngle).filter((angle) => !isNaN(angle));
@@ -236,7 +203,6 @@ function bisectLargestAngles(angles: [number, number]): Matter.Vector {
     const bisectionAngle = angles[0] + diff;
     const bisector = Vector.create(-1, 0)
     const bestVector = Vector.rotate(bisector, bisectionAngle);
-    const vectorAngle = Vector.angle(bestVector, Vector.create(0, 0));
     return bestVector;
 }
 

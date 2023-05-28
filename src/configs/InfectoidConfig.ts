@@ -1,5 +1,5 @@
 import { PopAppearance, PopStats, PopType } from "../@types/Pop"
-import { DEFAULT_POP_STATS, DEFAULT_POP_APPEARANCE } from "./PopConfig"
+import { DEFAULT_POP_APPEARANCE } from "./PopConfig"
 
 export const DEFAULT_INFECTOID_STATS: PopStats = {
     popType: PopType.infectoid,

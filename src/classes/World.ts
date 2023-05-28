@@ -1,6 +1,6 @@
 import { cloneDeep } from "lodash";
 
-import Matter, { Bodies, Composite, Vector, Body, Constraint, Common, Events, Engine, IBodyDefinition, Pairs, Query, IEventCollision } from "matter-js";
+import Matter, { Bodies, Composite, Vector, Body, Common, Events, Engine, IBodyDefinition, Query, IEventCollision } from "matter-js";
 import { DEFAULT_POP_STATS, DEFAULT_POP_APPEARANCE } from "../configs/PopConfig";
 import { DEFAULT_ZOMBOID_STATS, DEFAULT_ZOMBOID_APPEARANCE } from "../configs/ZomboidConfig";
 import { DEFAULT_INFECTOID_STATS, DEFAULT_INFECTOID_APPEARANCE } from "../configs/InfectoidConfig";
@@ -9,9 +9,6 @@ import Pop from "./Pop";
 import { DetectedObjects, DETECTED_OBJECTS } from "../configs/DetectedObjects";
 
 export class World {
-    // // Canvas configurations
-    // worldConfiguration: WorldConfiguration;
-
     // Zomboid configurations
     zomboidConfiguration: PopConfiguration = { stats: DEFAULT_ZOMBOID_STATS, appearance: DEFAULT_ZOMBOID_APPEARANCE };
 
@@ -67,8 +64,6 @@ export class World {
                 Math.random() < 0.9 ? cloneDeep(this.humanoidConfiguration) : cloneDeep(this.zomboidConfiguration), // type
             );
 
-            // Body.applyForce(pop.body, pop.body.position, { x: Common.random(-pop.stats.speed, pop.stats.speed), y: Common.random(-pop.stats.speed, pop.stats.speed) });
-
             if (i === 0) {
                 pop.body.render.fillStyle = 'black'
                 pop.sensor.render.lineWidth = 1
@@ -100,13 +95,6 @@ export class World {
 
     detectPop(pop: Pop, otherPop: Pop) {
         switch (pop.stats.popType) {
-            /**  OLD HUMANOID EVASION BEHAVIOR */
-            // case PopType.humanoid:
-            //     if (otherPop.stats.popType === PopType.zomboid) {
-            //         // Run away
-            //         pop.moveTowards(Vector.sub(pop.body.position, otherPop.body.position), this.engine.timing.lastDelta);
-            //     }
-            //     break;
             case PopType.zomboid:
                 if (otherPop.stats.popType === PopType.humanoid) {
                     // Give chase

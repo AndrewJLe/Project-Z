@@ -1,8 +1,6 @@
 import React from "react";
-import { Engine, Render, Runner, Vector, Composite, Common, Body, Bodies, IBodyDefinition } from "matter-js";
-import Pop from "../classes/Pop";
+import { Engine, Render, Runner } from "matter-js";
 import { World } from "../classes/World";
-import { forEach } from "lodash";
 
 
 const useInitMatter = (elementId: string) => {
@@ -20,11 +18,6 @@ const useInitMatter = (elementId: string) => {
         var engine = Engine.create();
 
         // Engine Configuration
-        // engine.positionIterations = 144;
-        // engine.velocityIterations = 20;
-        // engine.constraintIterations = 144;
-
-        // Physics configuration
         engine.gravity.y = 0;
 
         // Create a renderer / Canvas
