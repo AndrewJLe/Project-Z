@@ -2,12 +2,17 @@ import React from 'react';
 import useInitMatter from '../hooks/useInitMatter';
 
 function MatterCanvas(): React.ReactElement {
-    useInitMatter("matter-canvas");
+    const { reset } = useInitMatter("matter-canvas");
 
     return (
-        <div id="matter-canvas">
-
+        <div>
+            <div id="matter-canvas"></div>
+            <button onKeyDown={(event) => {
+                console.log(event);
+                reset();
+            }}>Restart</button>
         </div>
+
     );
 };
 

@@ -5,6 +5,12 @@ import { World } from "../classes/World";
 
 const useInitMatter = (elementId: string) => {
     const [hasInitialized, setHasInitialized] = React.useState(false);
+    const [matterObjects, setMatterObjects] = React.useState<{ world?: World, engine?: Engine, render?: Render, runner?: Runner }>({
+        world: undefined,
+        engine: undefined,
+        render: undefined,
+        runner: undefined,
+    })
 
     function initMatter() {
         if (hasInitialized) return;
@@ -40,10 +46,29 @@ const useInitMatter = (elementId: string) => {
         Runner.run(runner, engine);
 
         new World(engine);
+
+        setMatterObjects({
+            engine, runner, render,
+        })
+    }
+
+    function reset() {
+        clear();
+        initMatter();
+    }
+
+    function clear() {
+        if (!hasInitialized) return;
+
+        Engine.clear(matterObjects.engine!);
+        Render.stop(matterObjects.render!);
+        Runner.stop(matterObjects.runner!);
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
     React.useEffect(() => initMatter(), [elementId]);
+
+    return { initMatter, reset, clear }
 }
 
 export default useInitMatter;

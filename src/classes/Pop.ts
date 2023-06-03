@@ -4,6 +4,7 @@ import Matter, { Bodies, Composite, Vector, Body, Constraint } from "matter-js";
 import { PopAppearance, PopConfiguration, PopStats, PopType } from "../@types/Pop";
 
 import { DetectedObjects, DETECTED_OBJECTS } from "../configs/DetectedObjects";
+import { Common } from "matter-js";
 
 export interface WorldConfiguration {
     worldOffset: number;
@@ -13,12 +14,9 @@ export interface WorldConfiguration {
 
 class Pop {
     id: number;
-    // position: Vector;
     terrainDetected: Boolean;
-
     stats: PopStats;
     appearance: PopAppearance;
-
     detectedObjects: DetectedObjects;
 
     // Physical bodies
@@ -144,6 +142,20 @@ class Pop {
         const gap = findLargestGap(angles);
         const bestPath = bisectLargestAngles(gap);
         return bestPath;
+    }
+
+    /**
+     * Pops will wander in random directions while no one is in their FOV
+     */
+    wander(pop: Pop, x: number, y: number, duration: number, deltaT: number) {
+        if (pop.stats.wanderDuration > 0) {
+            pop.stats.wanderDuration -= 1
+            this.moveTowards(Vector.create(x, y), deltaT)
+        }
+        else {
+            pop.stats.wanderDuration = duration
+            pop.stats.wanderDirection = { x: Common.random(-0.05, 0.05), y: Common.random(-0.05, 0.05) }
+        }
     }
 }
 

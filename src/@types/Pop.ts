@@ -22,4 +22,6 @@ export interface PopStats {
     size: number;
     range: number;
     speed: number;
+    wanderDuration: number;
+    wanderDirection: { x: number, y: number };
 }
