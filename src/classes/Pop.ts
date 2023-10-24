@@ -147,14 +147,14 @@ class Pop {
     /**
      * Pops will wander in random directions while no one is in their FOV
      */
-    wander(pop: Pop, x: number, y: number, duration: number, deltaT: number) {
-        if (pop.stats.wanderDuration > 0) {
-            pop.stats.wanderDuration -= 1
+    wander(x: number, y: number, duration: number, deltaT: number) {
+        if (this.stats.wanderDuration > 0) {
+            this.stats.wanderDuration -= 1
             this.moveTowards(Vector.create(x, y), deltaT)
         }
         else {
-            pop.stats.wanderDuration = duration
-            pop.stats.wanderDirection = { x: Common.random(-0.05, 0.05), y: Common.random(-0.05, 0.05) }
+            this.stats.wanderDuration = duration
+            this.stats.wanderDirection = { x: Common.random(-0.05, 0.05), y: Common.random(-0.05, 0.05) }
         }
     }
 }
