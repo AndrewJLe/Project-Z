@@ -56,7 +56,7 @@ export class World {
     }
 
     initPops() {
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 20; i++) {
             const pop = new Pop(
                 i,
                 Vector.create(Math.random() * window.innerWidth, Math.random() * window.innerHeight), // position
@@ -273,6 +273,9 @@ export class World {
                 if (pop.stats.popType === PopType.humanoid) {
                     const bestPath = pop.smartPathing(this.filterVisible(pop, pop.detectedObjects));
                     pop.moveTowards(bestPath, this.engine.timing.lastDelta);
+                }
+                if ((pop.stats.popType === PopType.humanoid && pop.detectedObjects.Zomboid.length === 0) || (pop.stats.popType === PopType.zomboid && pop.detectedObjects.Humanoid.length === 0)) {
+                    pop.wander(pop, pop.stats.wanderDirection.x, pop.stats.wanderDirection.y, 500, this.engine.timing.lastDelta)
                 }
 
                 // Infectoids spaz out
